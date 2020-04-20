@@ -9,6 +9,9 @@
 
 * Lib: alive-progress
 
+> 运行前记得去 **main.py** 文件把 *obj.login_m("user", "pass")* 替换成你的账号和密码哟～
+> 仅第一次登陆会使用账号和密码, 拿到 Cookies 后就可以留空啦！
+
 *运行*
 
 ```shell

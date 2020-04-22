@@ -32,6 +32,8 @@ def print_list(obj):
         print("| %2d | %-s" % (index, item['courseName']))
         index = index + 1
     print("------------------------------------")
+    print("| 退出请输入 -1")
+    print("------------------------------------")
 
 def print_tree(obj):
     if len(obj) == 0:

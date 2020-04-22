@@ -99,7 +99,10 @@ class ChaoXing:
 
         a = json.loads(r.text)
 
-        print(a['mes'])
+        if a['status']:
+            print("✅ %s" % a['mes'])
+        else:
+            print("❌ %s" % a['mes'])
 
         return a['status']
 

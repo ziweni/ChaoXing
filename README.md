@@ -3,21 +3,26 @@
 
 
 
-*环境/依赖*
+*配置*
 
-* Python 3.8.2
+> 运行前请先将文件 **config.default.yml** 拷贝后的文件重命名为 **config.yml**
+> 再修改 **config.yml** 内的配置信息
 
-* Lib: alive-progress
 
-> 运行前记得去 **main.py** 文件把 *obj.login_m("user", "pass")* 替换成你的账号和密码哟～
-> 仅第一次登陆会使用账号和密码, 拿到 Cookies 后就可以留空啦！
 
 *运行*
+
+> ⚠️  运行前请先确认环境是否为 ***Python 3.8***
 
 ```shell
 git clone https://github.com/shanling2016/ChaoXing && cd ChaoXing/
 ```
+> 安装依赖库
 
+```shell
+pip3 install -r requirements.txt
+```
+> 运行程序
 ```shell
 python3 main.py
 ```

@@ -24,7 +24,14 @@ pip3 install -r requirements.txt
 ```
 > 运行程序
 ```shell
+# 带提示运行
 python3 main.py
+
+# 输出课程列表
+python3 main.py --list
+
+# 执行课程任务
+python3 main.py --id <课程列表序号id>
 ```
 
 

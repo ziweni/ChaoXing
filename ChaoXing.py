@@ -17,6 +17,10 @@ class ChaoXing:
 
     s = requests.session()
 
+    token = "4faa8662c59590c6f43ae9fe5b002b42"
+
+    uid = ""
+
     def __init__(self):
         # 设置全局Http协议头
         self.s.headers.update(
@@ -106,203 +110,153 @@ class ChaoXing:
 
         return a['status']
 
-    # 验证码识别; 联众打码接口
-    def code(self, imagePath):
-        uri = "http://v1-http-api.jsdama.com/api.php?mod=php&act=upload"
-
-        user_name = "*********"
-        user_pw = "*********"
-
-        headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:53.0) Gecko/20100101 Firefox/53.0',
-            'Connection': 'keep-alive',
-            'Host': 'v1-http-api.jsdama.com',
-            'Upgrade-Insecure-Requests': '1'
-        }
-
-        files = {
-            'upload': (imagePath, open(imagePath, 'rb'), 'image/png')
-        }
-
-        data = {
-            'user_name': user_name,
-            'user_pw': user_pw,
-            'yzm_type': '1001'
-        }
-
-        s = requests.session()
-        r = s.post(uri, headers=headers,
-                   data=data, files=files, verify=False)
-        a = json.loads(r.text)
-
-        return a['data']['val']
+    # 获取用户信息
+    def get_user_info(self):
+        r = self.s.get("https://sso.chaoxing.com/apis/login/userLogin4Uname.do")
+        if r.text != "":
+            o = json.loads(r.text)
+            if o['result'] == 1:
+                puid = o['msg']['puid']
+                _time = str(get_timestamp())
+                enc = "token={0}&_time={1}&puid={2}&myPuid={3}&DESKey={4}".format(
+                    self.token, _time, puid, puid, "Z(AfY@XS")
+                enc = hashlib.md5(enc.encode("utf-8")).hexdigest()
+                url = "https://useryd.chaoxing.com/apis/user/getUser?token={0}&_time={1}&puid={2}&myPuid={3}&inf_enc={4}".format(self.token, _time, puid, puid, enc)
+                r = self.s.get(url)
+                if r.text != "":
+                    o = json.loads(r.text)
+                    if o['result'] == 1:
+                        self.uid = o['msg']['puid']
+                        return o['msg']
+        
+        return None
 
     # 获取课程列表
-    def get_list(self):
-        uri = "http://i.mooc.chaoxing.com/space/index?t=" + \
-            str(get_timestamp())
+    def get_course_list(self):
+        if self.uid == "":
+            self.get_user_info()
+        r = self.s.get("http://mooc1-api.chaoxing.com/mycourse/backclazzdata?view=json&rss=1")
+        if r.text != "":
+            o = json.loads(r.text)
+            if o['result'] == 1:
+                ret = []
+                for item in o['channelList']:
+                    for item2 in item['content']['course']['data']:
+                        ret.insert(0, {
+                            "id": item['id'],
+                            "courseId": item2['id'],
+                            "courseName": item2['name'],
+                            "cpi": item['cpi'],
+                            "cataName": item['cataName'],
+                            "clazzid": item['key'],
+                            "isstart": item['content']['isstart'],
+                            "state": item['content']['state']
+                        })
 
-        r = self.s.get(uri)
-
-        rule = r'<iframe src=\"(.*?)\"'
-        d = re.findall(rule, r.text)
-
-        for it in d:
-            if it != "":
-                uri = it
-                break
-
-        r = self.s.get(uri)
-
-        rule = r'<li style=\"position:relative\">(.*?)</li>'
-        d = re.findall(rule, r.text, re.DOTALL)
-
-        ret = []
-
-        for item in d:
-            item = html.unescape(item)
-
-            url = re.findall(r'href=\'(.*?)\'', item)
-            courseId = re.findall(r'courseId" value=\"(.*?)\"', item)
-            classId = re.findall(r'classId" value=\"(.*?)\"', item)
-            cpi = re.findall(r'cpi=(.*?)&', url[0])
-            title = re.findall(
-                r'<div class=\"Mconright httpsClass\">(.*?)</div>', item, re.DOTALL)
-
-            infomation = re.findall(r'title=\"(.*?)\"', title[0])
-
-            course = {
-                'courseId': courseId[0],
-                'classId': classId[0],
-                'cpi': cpi[0],
-                'url': "https://mooc1-1.chaoxing.com" + url[0],
-                'courseName': infomation[0],
-                'teachar': infomation[1],
-                'school': infomation[2],
-                'class': infomation[3]
-            }
-
-            ret.insert(len(ret), course)
-
-        return ret
+                return ret
+        return None
 
     # 获取课程目录
-    def get_course_cata(self, url):
+    def get_course_cata(self, clazzid, cpi):
 
+        url = "https://mooc1-api.chaoxing.com/gas/clazz?id={0}&personid={1}&fields=id,bbsid,classscore,isstart,allowdownload,chatid,name,state,isthirdaq,isfiled,information,discuss,visiblescore,begindate,coursesetting.fields(id,courseid,hiddencoursecover,hiddenwrongset,coursefacecheck),course.fields(id,name,infocontent,objectid,app,bulletformat,mappingcourseid,imageurl,knowledge.fields(id,name,indexOrder,parentnodeid,status,layer,label,begintime,endtime,attachment.fields(id,type,objectid,extension).type(video)))&view=json" \
+            .format(clazzid, cpi)
+        
         r = self.s.get(url)
 
-        d = re.findall(
-            r'<div class=\"units\">(.*?)\n                            </div>', r.text, re.DOTALL)
-        bul = re.findall(r'bulletFormat = \"(.*?)\"', r.text)
+        if r.text != "":
+            o = json.loads(r.text)
 
-        ret = []
-        for item in d:
-            root = re.findall(r'<h2 (.*?)</h2>', item, re.DOTALL)
-            ic = re.findall(
-                r'<span class=\"chapterNumber\">(.*?)</span>', root[0], re.DOTALL)
-            title = re.findall(r'title=\"(.*?)\"', root[0])
-            title[0] = title[0].replace("\ufeff", "")
-
-            order = re.findall(
-                r'<div class=\"leveltwo\">(.*?)</div>', item, re.DOTALL)
-            data = []
-            for node in order:
-                t = re.findall(r'title=\"(.*?)\"', node)
-                s = re.findall(
-                    r'<span class=\"chapterNumber\">(.*?)</span>', node)
-                u = re.findall(r'href=\'(.*?)\'', node)
-                c = re.findall(r'<em class=\"orange\">(.*?)</em>', node)
-                if len(c) == 0:
-                    c = 0
-                else:
-                    c = int(c[0])
-
-                if len(u) == 0:
-                    u = ""
-                else:
-                    u = "https://mooc1-1.chaoxing.com" + u[0]
-
-                i = len(t) - 1
-                if len(s) == 0 or bul[0] == "Dot":
-                    t = t[i]
-                else:
-                    t = "%s %s" % (s[0], t[i])
-
-                if u == "":
-                    t = t + " 🔒"
-
-                data.insert(len(data), {
-                    'title': t,
-                    'url': u,
-                    'complete': c
+            ret = {}
+            for item in o['data'][0]['course']['data'][0]['knowledge']['data']:
+                if not item['layer'] in ret:
+                    ret[item['layer']] = []
+                ret[item['layer']].insert(len(ret[item['layer']]), {
+                    'id': item['id'],
+                    'parentnodeid': item['parentnodeid'],
+                    'name': item['name'],
+                    'label': item['label'],
+                    'data': {
+                        "clickcount": 0,
+                        "finishcount": 0,
+                        "totalcount": 0,
+                        "openlock": 0,
+                        "unfinishcount": 0
+                    }
                 })
+            
+            
+            nodes = []
+            for item in o['data'][0]['course']['data'][0]['knowledge']['data']:
+                if item['layer'] > 1:
+                    nodes.insert(0, item['id'])
+            taskInfo = self.get_task_finish_status(o['data'][0]['id'], cpi, nodes, o['data'][0]['course']['data'][0]['id'])
+            for key, value in taskInfo.items():
+                for key2, value2 in ret.items():
+                    for key3, value3 in enumerate(value2):
+                        if str(value3['id']) == key:
+                            ret[key2][key3]['data']['clickcount'] = value['clickcount']
+                            ret[key2][key3]['data']['finishcount'] = value['finishcount']
+                            ret[key2][key3]['data']['totalcount'] = value['totalcount']
+                            ret[key2][key3]['data']['openlock'] = value['openlock']
+                            ret[key2][key3]['data']['unfinishcount'] = value['unfinishcount']
 
-            if len(ic) == 0:
-                title = title[0]
-            else:
-                title = "%s %s" % (ic[0].replace(
-                    "\n", "").replace("\t", ""), title[0])
-            ret.insert(len(ret), {
-                'title': title,
-                'data': data
-            })
+            return ret
+            
+        return None
 
-        return ret
-
-    # 获取课程分页
-    def get_course_page(self, courseId, clazzid, chapterId, cpi):
-
-        uri = "https://mooc1-1.chaoxing.com/mycourse/studentstudyAjax"
-
-        data = obj2str({
-            'courseId': courseId,
-            'clazzid': clazzid,
-            'chapterId': chapterId,
-            'cpi': cpi,
-            'verificationcode': ""
-        })
+    # 获取任务完成数量
+    def get_task_finish_status(self, clazzid, cpi, nodes, courseid):
 
         headers = {
             'Content-Type': "application/x-www-form-urlencoded",
             'Accept-Encoding': 'gzip, deflate, br',
             'Origin': "http://i.mooc.chaoxing.com/",
+            'Referer': "http://passport2.chaoxing.com/login?fid=&refer=http://i.mooc.chaoxing.com"
         }
 
-        r = self.s.post(uri, headers=headers, data=data)
+        node = ','.join([str(i) for i in nodes])
 
-        rc = re.findall(r'<span (.*?)</span>', r.text, re.DOTALL)
+        data = obj2str({
+            'clazzid': clazzid,
+            'userid': self.uid,
+            'view': 'json',
+            'cpi': cpi,
+            'nodes': node,
+            'courseid': courseid
+        })
 
-        ret = []
-        # 判断是否只有一页
-        if len(rc) == 0:
-            title = re.findall(r'<h1>(.*?)</h1>', r.text, re.DOTALL)
-            url = re.findall(r'/knowledge/cards\?(.*?)\"', r.text, re.DOTALL)
-            ret.insert(len(ret), {
-                'title': title[0],
-                'url': "https://mooc1-1.chaoxing.com/knowledge/cards?%s" % url[0]
-            })
-        else:
-            for item in rc:
-                title = re.findall(r'title=\"(.*?)\"', item)
-                paras = re.findall(r'\d{1,}', item)
-                num = int(paras[0]) - 1
-                totalnum = paras[1]
-                chapterId = paras[2]
-                courseId = paras[3]
-                clazzid = paras[4]
-                ret.insert(len(ret), {
-                    'title': title[0],
-                    'url': "https://mooc1-1.chaoxing.com/knowledge/cards?clazzid=%s&courseid=%s&knowledgeid=%s&num=%d&ut=s&cpi=%s&v=20160407-1"
-                    % (clazzid, courseId, chapterId, num, cpi)
-                })
-        return ret
+        r = self.s.post("https://mooc1-api.chaoxing.com/job/myjobsnodesmap", headers=headers, data=data)
+        if r.text != "":
+            return json.loads(r.text)
+        return None
+
+    # 获取子节点任务分页
+    def get_task_page(self, id, courseid):
+
+        _time = str(get_timestamp())
+        enc = "token={0}&_time={1}&DESKey={2}".format(
+            self.token, _time, "Z(AfY@XS")
+        enc = hashlib.md5(enc.encode("utf-8")).hexdigest()
+
+        url = "https://mooc1-api.chaoxing.com/gas/knowledge?id={0}&courseid={1}&fields=name,id,card.fields(id,title,cardorder,description)&view=json&token={2}&_time={3}&inf_enc={4}" \
+            .format(id, courseid, self.token, _time, enc)
+
+        r = self.s.get(url)
+
+        if r.text != "":
+            o = json.loads(r.text)
+            if len(o['data']) != 0:
+                return o['data'][0]['card']['data']
+
+        return None
 
     # 获取分页的分级
     # 有时一个分页不止一个任务点
-    def get_course_page_level(self, url):
+    def get_task_page_level(self, clazzid, courseId, knowledgeid, cpi, n):
+
+        url = "https://mooc1-api.chaoxing.com/knowledge/cards?clazzid={0}&courseid={1}&knowledgeid={2}&num={3}&isPhone=1&control=true&cpi={4}" \
+            .format(clazzid, courseId, knowledgeid, n, cpi)
 
         r = self.s.get(url)
 
@@ -312,31 +266,25 @@ class ChaoXing:
             if d != "\"\"":
                 mArg = d
                 break
-
-        mArg = json.loads(mArg)
+        try:
+            mArg = json.loads(mArg)
+        except TypeError:
+            return None
+        except json.JSONDecodeError:
+            return None
+        
         return mArg
 
-    #  获取课程分页分级的资源
+    #  获取课程资源信息
     def get_course_data(self, objectid):
 
         uri = "https://mooc1-1.chaoxing.com/ananas/status/%s?k=2041&flag=normal&_dc=%d" % (
             objectid, get_timestamp())
 
         r = self.s.get(uri)
-
-        return json.loads(r.text)
-
-    # 数据上报完成; 用于pptx
-    def updata_log_ppt(self, jobId, knowledgeid, courseId, clazzid, jtoken):
-
-        uri = "https://mooc1-1.chaoxing.com/ananas/job/document?jobid=%s&knowledgeid=%s&courseid=%s&clazzid=%s&jtoken=%s&_dc=%d" % (
-            jobId, knowledgeid, courseId, clazzid, jtoken, get_timestamp())
-
-        r = self.s.get(uri)
-
-        j = json.loads(r.text)
-        print(j['msg'])
-        return j['status']
+        if r.text != "":
+            return json.loads(r.text)
+        return None
 
     # 上报数据; 用于表示用户正在播放视频
     def update_log_video(self, reportUrl, clazzId, playingTime, duration, dtoken, objectId, otherInfo, jobId, userid):
@@ -348,7 +296,22 @@ class ChaoXing:
             reportUrl, "/", dtoken, "?clazzId=", clazzId, "&playingTime=", playingTime, "&duration=", duration, "&clipTime=", clipTime, "&objectId=", objectId, "&otherInfo=", otherInfo, "&jobid=", jobId, "&userid=", userid, "&isdrag=", 0, "&view=pc", "&enc=", hashlib.md5(enc.encode(encoding='UTF-8')).hexdigest(), "&rt=", 0.9, "&dtype=Video", "&_t=", get_timestamp())
         
         r = self.s.get(uri)
-        
-        ret = json.loads(r.text)
-        
-        return ret['isPassed']
+
+        if r.text != "":
+            ret = json.loads(r.text)
+            return ret['isPassed']
+
+        return None
+
+    # 数据上报完成; 用于pptx
+    def updata_log_ppt(self, jobId, knowledgeid, courseId, clazzid, jtoken):
+
+        uri = "https://mooc1-1.chaoxing.com/ananas/job/document?jobid=%s&knowledgeid=%s&courseid=%s&clazzid=%s&jtoken=%s&_dc=%d" % (
+            jobId, knowledgeid, courseId, clazzid, jtoken, get_timestamp())
+
+        r = self.s.get(uri)
+        if r.text != "":
+            o = json.loads(r.text)
+            print(o['msg'])
+            return o['status']
+        return None

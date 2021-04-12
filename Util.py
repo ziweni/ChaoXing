@@ -22,7 +22,7 @@ def obj2str(obj):
             ret = ret + "&" + key + "=" + str(obj[key])
     return ret
 
-def print_list(obj):
+def print_list(obj, isExit = True):
     if len(obj) == 0:
         return
     print("------------------------------------")
@@ -32,47 +32,60 @@ def print_list(obj):
         print("| %2d | %-s" % (index, item['courseName']))
         index = index + 1
     print("------------------------------------")
-    print("| 退出请输入 -1")
-    print("------------------------------------")
+    if isExit:
+        print("| 退出请输入 -1")
+        print("------------------------------------")
 
 def print_tree(obj):
     if len(obj) == 0:
         return
 
-    oc = 0
-
     index = 0
-    for item in obj:
-        if index == 0:
-            print("┌ %s" % item['title'])
-        elif index == len(obj) - 1:
-            print("└ %s" % item['title'])
-        else:
-            print("├ %s" % item['title'])
-
+    kv = {}
+    print_list = []
+    for key, value in obj.items():
         index2 = 0
-        for item2 in item['data']:
-
-            if item2['complete'] != 0:
-                c = "  ❌（%d）" % item2['complete']
-                oc = oc + item2['complete']
-            else:
-                c = ""
-
-            if index + 1 == len(obj):
-                if len(item['data']) - 1 != index2:
-                    print("  ├ %s" % item2['title'] + c)
+        for key2, value2 in enumerate(value):
+            head_list = [ " " for i in range(key) ]
+            endi = len(obj[1]) - 1
+            if index == 0 and index2 + 1 == len(obj[1]):
+                head_list[0] = "└"
+            elif index == 0 and index2 == 0:
+                head_list[0] = "┌"
+            elif key == 1:
+                head_list[0] = "├"
+            elif value2['parentnodeid'] != obj[1][endi]['id']:
+                head_list[0] = "|"
+            if key > 1:
+                if key2 + 1 >= len(value) or value2['parentnodeid'] != value[key2+1]['parentnodeid']:
+                    head_list[key-1] = "└"
                 else:
-                    print("  └ %s" % item2['title'] + c)
+                    head_list[key-1] = "├"
+            head = "  ".join(head_list)
+            
+            if key == 1:
+                print_list.insert(len(print_list), {
+                    "title": "%s %s、%s" % (head, value2['label'], value2['name']),
+                    "data": []
+                })
+                kv[value2['id']] = len(print_list)
             else:
-                if len(item['data']) - 1 != index2:
-                    print("│ ├ %s" % item2['title'] + c)
+                length = len(print_list[kv[value2['parentnodeid']] - 1]['data'])
+                if value2['data']['totalcount'] == 0:
+                    emoji = "🔒"
+                elif value2['data']['unfinishcount'] == value2['data']['totalcount']:
+                    emoji = "❌ %d" % value2['data']['totalcount']
+                elif value2['data']['unfinishcount'] == 0:
+                    emoji = "✅"
                 else:
-                    print("│ └ %s" % item2['title'] + c)
+                    emoji = "⏳ %d" % value2['data']['unfinishcount']
+                print_list[kv[value2['parentnodeid']] - 1]['data'].insert(length, {
+                    "title": "%s %s、%s (%s)" % (head, value2['label'], value2['name'], emoji)
+                })
 
             index2 = index2 + 1
-
         index = index + 1
-
-    if oc != 0:
-        print("您一共有 %d 个未完成的项目!" % oc)
+    for item in print_list:
+        print(item['title'])
+        for item2 in item['data']:
+            print(item2['title'])
